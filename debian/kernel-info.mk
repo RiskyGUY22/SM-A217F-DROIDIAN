@@ -8,23 +8,23 @@
 VARIANT = android
 
 # Kernel base version
-KERNEL_BASE_VERSION = 4.4-0
+KERNEL_BASE_VERSION = 4.19.132
 
 # The kernel cmdline to use
-KERNEL_BOOTIMAGE_CMDLINE = put-cmdline-here
+KERNEL_BOOTIMAGE_CMDLINE = androidboot.hardware=exynos850 androidboot.selinux=enforce loop.max_part=7 console=tty0 droidian.lvm.prefer
 
 # Slug for the device vendor. This is going to be used in the KERNELRELASE
 # and package names.
-DEVICE_VENDOR = vendor
+DEVICE_VENDOR = samsung
 
 # Slug for the device model. Like above.
-DEVICE_MODEL = device1
+DEVICE_MODEL = a21s
 
 # Slug for the device platform. If unsure, keep this commented.
 #DEVICE_PLATFORM = platform
 
 # Marketing-friendly full-name. This will be used inside package descriptions
-DEVICE_FULL_NAME = Vendor Device 1
+DEVICE_FULL_NAME = Samsung Galaxy a21s
 
 # Whether to use configuration fragments to augment the kernel configuration.
 # If unsure, keep this to 0.
@@ -40,7 +40,7 @@ KERNEL_CONFIG_USE_DIFFCONFIG = 0
 #KERNEL_PRODUCT_DIFFCONFIG = my_diffconfig
 
 # Defconfig to use
-KERNEL_DEFCONFIG = defconfig
+KERNEL_DEFCONFIG = exynos850-a21snsxx_defconfig
 
 # Whether to include DTBs with the image. Use 0 (no) or 1.
 KERNEL_IMAGE_WITH_DTB = 1
@@ -48,7 +48,7 @@ KERNEL_IMAGE_WITH_DTB = 1
 # Path to the DTB
 # If you leave this undefined, an attempt to find it automatically
 # will be made.
-#KERNEL_IMAGE_DTB = arch/arm64/boot/dts/qcom/my_dtb.dtb
+#KERNEL_IMAGE_DTB = arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_r00.dts
 
 # Whether to include a DTB Overlay. Use 0 (no) or 1.
 KERNEL_IMAGE_WITH_DTB_OVERLAY = 1
@@ -61,8 +61,7 @@ KERNEL_IMAGE_WITH_DTB_OVERLAY = 1
 # Whether to include the DTB Overlay into the kernel image
 # Use 0 (no, default) or 1.
 # dtbo.img will always be shipped in the linux-bootimage- package.
-KERNEL_IMAGE_WITH_DTB_OVERLAY_IN_KERNEL = 0
-
+KERNEL_IMAGE_WITH_DTB_OVERLAY_IN_KERNEL = 1
 # Path to a specifc configuration file for mkdtboimg.
 # The default is to leave it undefined.
 #KERNEL_IMAGE_DTB_OVERLAY_CONFIGURATION = debian/custom_dtbo_config.cfg
@@ -77,17 +76,17 @@ KERNEL_IMAGE_WITH_DTB_OVERLAY_IN_KERNEL = 0
 
 # Various other settings that will be passed straight to mkbootimg
 KERNEL_BOOTIMAGE_PAGE_SIZE = 4096
-KERNEL_BOOTIMAGE_BASE_OFFSET = 0x00000000
+KERNEL_BOOTIMAGE_BASE_OFFSET = 0x10000000
 KERNEL_BOOTIMAGE_KERNEL_OFFSET = 0x00008000
 KERNEL_BOOTIMAGE_INITRAMFS_OFFSET = 0x01000000
 KERNEL_BOOTIMAGE_SECONDIMAGE_OFFSET = 0x00f00000
 KERNEL_BOOTIMAGE_TAGS_OFFSET = 0x00000100
 
-# Specify boot image security patch level if needed
-#KERNEL_BOOTIMAGE_PATCH_LEVEL = 2022-04-05
+# Specify boot image security patch level if needed (commented by default)
+KERNEL_BOOTIMAGE_PATCH_LEVEL = 2023-03
 
 # Required for header version 2, ignore otherwise
-KERNEL_BOOTIMAGE_DTB_OFFSET = 0x1f00000
+KERNEL_BOOTIMAGE_DTB_OFFSET = 0x00000000
 
 # Kernel bootimage version. Defaults to 0 (legacy header).
 # As a rule of thumb:
@@ -95,7 +94,7 @@ KERNEL_BOOTIMAGE_DTB_OFFSET = 0x1f00000
 # Devices launched with Android 9: version 1
 # Devices launched with Android 10: version 2
 # Devices launched with Android 11: version 2 or 3 (GKI)
-KERNEL_BOOTIMAGE_VERSION = 0
+KERNEL_BOOTIMAGE_VERSION = 2
 
 ########################################################################
 # Android verified boot
@@ -109,7 +108,7 @@ DEVICE_VBMETA_REQUIRED = 1
 # Samsung devices require a special flag. Enable the following if your
 # device is a Samsung device that requires flag 0 to be present
 # Use 0 (no, default) or 1.
-DEVICE_VBMETA_IS_SAMSUNG = 0
+DEVICE_VBMETA_IS_SAMSUNG = 1
 
 ########################################################################
 # Automatic flashing on package upgrades
@@ -132,18 +131,18 @@ FLASH_IS_AONLY = 0
 FLASH_IS_LEGACY_DEVICE = 0
 
 # On some exynos devices partition names are capitalized (boot is BOOT and so on)
-# This flag makes the kernel to get flashed to the correct partition on updates.
-FLASH_IS_EXYNOS = 0
+# This flag makes the kernel to get flashed to the correct partition on updates. (default 0)
+FLASH_IS_EXYNOS = 1
 
 # Device manufacturer. This must match the `ro.product.vendor.manufacturer`
 # Android property. If you don't want to specify this, leave it undefined,
 # FLASH_INFO_CPU will be checked instead.
-FLASH_INFO_MANUFACTURER = Vendor
+FLASH_INFO_MANUFACTURER = samsung
 
 # Device model. This must match the `ro.product.vendor.model`
 # Android property. If you don't want to specify this, leave it undefined,
 # FLASH_INFO_CPU will be checked instead.
-FLASH_INFO_MODEL = Device1
+FLASH_INFO_MODEL = SM-A217F
 
 # Device CPU. This will be grepped against /proc/cpuinfo to check if
 # we're running on the specific device. Note this is a last-resort
@@ -163,26 +162,27 @@ BUILD_CROSS = 1
 
 # (Cross-build only) The build triplet to use. You'll probably want to
 # use aarch64-linux-android- if building Android kernels.
-BUILD_TRIPLET = aarch64-linux-android-
-
+#BUILD_TRIPLET = aarch64-linux-android-
+BUILD_TRIPLET = /buildd/sources/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
 # (Cross-build only) The build triplet to use with clang. You'll probably
 # want to use aarch64-linux-gnu- here.
-BUILD_CLANG_TRIPLET = aarch64-linux-gnu-
-
+BUILD_CLANG_TRIPLET = /buildd/sources/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-gnu-
+#BUILD_CLANG_TRIPLET = aarch64-linux-gnu-
 # The compiler to use. Recent Android kernels are built with clang.
 BUILD_CC = clang
 
 # Extra paths to prepend to the PATH variable. You'll probably want
 # to specify the clang path here (the default).
-BUILD_PATH = /usr/lib/llvm-android-6.0-4691093/bin
+#BUILD_PATH = /usr/lib/llvm-android-12.0-r416183b/bin
+BUILD_PATH = /buildd/sources/toolchain/clang/host/linux-x86/clang-r353983c/bin
 
 # Extra packages to add to the Build-Depends section. Mainline builds
 # can have this section empty, unless cross-building.
-# The default is enough to install the Android toolchain, including clang.
-DEB_TOOLCHAIN = linux-initramfs-halium-generic:arm64, binutils-aarch64-linux-gnu, clang-android-6.0-4691093, gcc-4.9-aarch64-linux-android, g++-4.9-aarch64-linux-android, libgcc-4.9-dev-aarch64-linux-android-cross
-
+# The default is enough to install the Android toolchain, including clang. (linux-initramfs-halium-generic:arm64, binutils-aarch64-linux-gnu, clang-android-6.0-4691093, gcc-4.9-aarch64-linux-android, g++-4.9-aarch64-linux-android, libgcc-4.9-dev-aarch64-linux-android-cr)
+DEB_TOOLCHAIN = linux-initramfs-halium-generic:arm64, binutils-aarch64-linux-gnu, clang-android-6.0-4691093, gcc-4.9-aarch64-linux-android, g++-4.9-aarch64-linux-android, libgcc-4.9-dev-aarch64-linux-android-cross,clang-android-12.0-r416183b
+#DEB_TOOLCHAIN = llvm-android-12.0-r416183b
 # Where we're building on
-DEB_BUILD_ON = amd64
+DEB_BUILD_ON = x86_64
 
 # Where we're going to run this kernel on
 DEB_BUILD_FOR = arm64
@@ -190,5 +190,5 @@ DEB_BUILD_FOR = arm64
 # Target kernel architecture
 KERNEL_ARCH = arm64
 
-# Kernel target to build
+# Kernel target to build (default Image.gz)
 KERNEL_BUILD_TARGET = Image.gz
