@@ -2653,8 +2653,6 @@ int netif_set_real_num_tx_queues(struct net_device *dev, unsigned int txq)
 		if (dev->num_tc)
 			netif_setup_tc(dev, txq);
 
-		dev_qdisc_change_real_num_tx(dev, txq);
-
 		dev->real_num_tx_queues = txq;
 
 		if (disabling) {
@@ -2853,12 +2851,6 @@ static u16 skb_tx_hash(const struct net_device *dev,
 
 		qoffset = sb_dev->tc_to_txq[tc].offset;
 		qcount = sb_dev->tc_to_txq[tc].count;
-		if (unlikely(!qcount)) {
-			net_warn_ratelimited("%s: invalid qcount, qoffset %u for tc %u\n",
-					     sb_dev->name, qoffset, tc);
-			qoffset = 0;
-			qcount = dev->real_num_tx_queues;
-		}
 	}
 
 	if (skb_rx_queue_recorded(skb)) {
@@ -3836,10 +3828,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 	if (dev->flags & IFF_UP) {
 		int cpu = smp_processor_id(); /* ok because BHs are off */
 
-		/* Other cpus might concurrently change txq->xmit_lock_owner
-		 * to -1 or to their cpu id, but not to our id.
-		 */
-		if (READ_ONCE(txq->xmit_lock_owner) != cpu) {
+		if (txq->xmit_lock_owner != cpu) {
 			if (dev_xmit_recursion())
 				goto recursion_alert;
 
@@ -5279,7 +5268,7 @@ static void flush_backlog(struct work_struct *work)
 	skb_queue_walk_safe(&sd->input_pkt_queue, skb, tmp) {
 		if (skb->dev->reg_state == NETREG_UNREGISTERING) {
 			__skb_unlink(skb, &sd->input_pkt_queue);
-			dev_kfree_skb_irq(skb);
+			kfree_skb(skb);
 			input_queue_head_incr(sd);
 		}
 	}
@@ -5427,8 +5416,7 @@ static void skb_gro_reset_offset(struct sk_buff *skb)
 
 	if (skb_mac_header(skb) == skb_tail_pointer(skb) &&
 	    pinfo->nr_frags &&
-	    !PageHighMem(skb_frag_page(frag0)) &&
-	    (!NET_IP_ALIGN || !(skb_frag_off(frag0) & 3))) {
+	    !PageHighMem(skb_frag_page(frag0))) {
 		NAPI_GRO_CB(skb)->frag0 = skb_frag_address(frag0);
 		NAPI_GRO_CB(skb)->frag0_len = min_t(unsigned int,
 						    skb_frag_size(frag0),
@@ -5969,18 +5957,11 @@ EXPORT_SYMBOL(napi_schedule_prep);
  * __napi_schedule_irqoff - schedule for receive
  * @n: entry to schedule
  *
- * Variant of __napi_schedule() assuming hard irqs are masked.
- *
- * On PREEMPT_RT enabled kernels this maps to __napi_schedule()
- * because the interrupt disabled assumption might not be true
- * due to force-threaded interrupts and spinlock substitution.
+ * Variant of __napi_schedule() assuming hard irqs are masked
  */
 void __napi_schedule_irqoff(struct napi_struct *n)
 {
-	if (!IS_ENABLED(CONFIG_PREEMPT_RT))
-		____napi_schedule(this_cpu_ptr(&softnet_data), n);
-	else
-		__napi_schedule(n);
+	____napi_schedule(this_cpu_ptr(&softnet_data), n);
 }
 EXPORT_SYMBOL(__napi_schedule_irqoff);
 
@@ -6241,13 +6222,12 @@ void netif_napi_add(struct net_device *dev, struct napi_struct *napi,
 		pr_err_once("netif_napi_add() called with weight %d on device %s\n",
 			    weight, dev->name);
 	napi->weight = weight;
+	list_add(&napi->dev_list, &dev->napi_list);
 	napi->dev = dev;
 #ifdef CONFIG_NETPOLL
 	napi->poll_owner = -1;
 #endif
 	set_bit(NAPI_STATE_SCHED, &napi->state);
-	set_bit(NAPI_STATE_NPSVC, &napi->state);
-	list_add_rcu(&napi->dev_list, &dev->napi_list);
 	napi_hash_add(napi);
 }
 EXPORT_SYMBOL(netif_napi_add);
@@ -8415,11 +8395,6 @@ static netdev_features_t netdev_fix_features(struct net_device *dev,
 		}
 	}
 
-	if ((features & NETIF_F_HW_TLS_RX) && !(features & NETIF_F_RXCSUM)) {
-		netdev_dbg(dev, "Dropping TLS RX HW offload feature since no RXCSUM feature.\n");
-		features &= ~NETIF_F_HW_TLS_RX;
-	}
-
 	return features;
 }
 
@@ -9772,7 +9747,7 @@ static void __net_exit default_device_exit(struct net *net)
 			continue;
 
 		/* Leave virtual devices for the generic cleanup */
-		if (dev->rtnl_link_ops && !dev->rtnl_link_ops->netns_refund)
+		if (dev->rtnl_link_ops)
 			continue;
 
 		/* Push remaining network devices to init_net */

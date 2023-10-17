@@ -8,7 +8,7 @@
 VARIANT = android
 
 # Kernel base version
-KERNEL_BASE_VERSION = 4.19.132
+KERNEL_BASE_VERSION = 4.19.246
 
 # The kernel cmdline to use
 KERNEL_BOOTIMAGE_CMDLINE = androidboot.hardware=exynos850 androidboot.selinux=enforce loop.max_part=7 console=tty0 droidian.lvm.prefer
@@ -24,7 +24,7 @@ DEVICE_MODEL = a21s
 #DEVICE_PLATFORM = platform
 
 # Marketing-friendly full-name. This will be used inside package descriptions
-DEVICE_FULL_NAME = Samsung Galaxy a21s
+DEVICE_FULL_NAME = Samsung Galaxy A21s
 
 # Whether to use configuration fragments to augment the kernel configuration.
 # If unsure, keep this to 0.
@@ -40,7 +40,7 @@ KERNEL_CONFIG_USE_DIFFCONFIG = 0
 #KERNEL_PRODUCT_DIFFCONFIG = my_diffconfig
 
 # Defconfig to use
-KERNEL_DEFCONFIG = exynos850-a21snsxx_defconfig
+KERNEL_DEFCONFIG = kawa_defconfig
 
 # Whether to include DTBs with the image. Use 0 (no) or 1.
 KERNEL_IMAGE_WITH_DTB = 1
@@ -75,15 +75,15 @@ KERNEL_IMAGE_WITH_DTB_OVERLAY_IN_KERNEL = 1
 #KERNEL_PREBUILT_DT = debian/dt.img
 
 # Various other settings that will be passed straight to mkbootimg
-KERNEL_BOOTIMAGE_PAGE_SIZE = 4096
+KERNEL_BOOTIMAGE_PAGE_SIZE = 2048
 KERNEL_BOOTIMAGE_BASE_OFFSET = 0x10000000
 KERNEL_BOOTIMAGE_KERNEL_OFFSET = 0x00008000
 KERNEL_BOOTIMAGE_INITRAMFS_OFFSET = 0x01000000
-KERNEL_BOOTIMAGE_SECONDIMAGE_OFFSET = 0x00f00000
+KERNEL_BOOTIMAGE_SECONDIMAGE_OFFSET = 0xf0000000
 KERNEL_BOOTIMAGE_TAGS_OFFSET = 0x00000100
 
 # Specify boot image security patch level if needed (commented by default)
-KERNEL_BOOTIMAGE_PATCH_LEVEL = 2023-03
+KERNEL_BOOTIMAGE_PATCH_LEVEL = 2022-02
 
 # Required for header version 2, ignore otherwise
 KERNEL_BOOTIMAGE_DTB_OFFSET = 0x00000000
@@ -132,7 +132,7 @@ FLASH_IS_LEGACY_DEVICE = 0
 
 # On some exynos devices partition names are capitalized (boot is BOOT and so on)
 # This flag makes the kernel to get flashed to the correct partition on updates. (default 0)
-FLASH_IS_EXYNOS = 1
+FLASH_IS_EXYNOS = 0
 
 # Device manufacturer. This must match the `ro.product.vendor.manufacturer`
 # Android property. If you don't want to specify this, leave it undefined,
@@ -163,10 +163,10 @@ BUILD_CROSS = 1
 # (Cross-build only) The build triplet to use. You'll probably want to
 # use aarch64-linux-android- if building Android kernels.
 #BUILD_TRIPLET = aarch64-linux-android-
-BUILD_TRIPLET = /buildd/sources/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
+BUILD_TRIPLET = /buildd/sources/toolchain/bin/aarch64-linux-gnueabi-
 # (Cross-build only) The build triplet to use with clang. You'll probably
 # want to use aarch64-linux-gnu- here.
-BUILD_CLANG_TRIPLET = /buildd/sources/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-gnu-
+BUILD_CLANG_TRIPLET = /buildd/sources/toolchain/bin/aarch64-linux-gnu-
 #BUILD_CLANG_TRIPLET = aarch64-linux-gnu-
 # The compiler to use. Recent Android kernels are built with clang.
 BUILD_CC = clang
@@ -174,7 +174,7 @@ BUILD_CC = clang
 # Extra paths to prepend to the PATH variable. You'll probably want
 # to specify the clang path here (the default).
 #BUILD_PATH = /usr/lib/llvm-android-12.0-r416183b/bin
-BUILD_PATH = /buildd/sources/toolchain/clang/host/linux-x86/clang-r353983c/bin
+BUILD_PATH = /buildd/sources/toolchain/bin
 
 # Extra packages to add to the Build-Depends section. Mainline builds
 # can have this section empty, unless cross-building.

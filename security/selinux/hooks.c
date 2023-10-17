@@ -1618,7 +1618,7 @@ static int inode_doinit_with_dentry(struct inode *inode, struct dentry *opt_dent
 			 * inode_doinit with a dentry, before these inodes could
 			 * be used again by userspace.
 			 */
-			goto out_invalid;
+			goto out;
 		}
 
 		len = INITCONTEXTLEN;
@@ -1734,7 +1734,7 @@ static int inode_doinit_with_dentry(struct inode *inode, struct dentry *opt_dent
 			 * could be used again by userspace.
 			 */
 			if (!dentry)
-				goto out_invalid;
+				goto out;
 			rc = selinux_genfs_get_sid(dentry, sclass,
 						   sbsec->flags, &sid);
 			dput(dentry);
@@ -1747,10 +1747,11 @@ static int inode_doinit_with_dentry(struct inode *inode, struct dentry *opt_dent
 out:
 	spin_lock(&isec->lock);
 	if (isec->initialized == LABEL_PENDING) {
-		if (rc) {
+		if (!sid || rc) {
 			isec->initialized = LABEL_INVALID;
 			goto out_unlock;
 		}
+
 		isec->initialized = LABEL_INITIALIZED;
 		isec->sid = sid;
 	}
@@ -1758,15 +1759,6 @@ out:
 out_unlock:
 	spin_unlock(&isec->lock);
 	return rc;
-
-out_invalid:
-	spin_lock(&isec->lock);
-	if (isec->initialized == LABEL_PENDING) {
-		isec->initialized = LABEL_INVALID;
-		isec->sid = sid;
-	}
-	spin_unlock(&isec->lock);
-	return 0;
 }
 
 /* Convert a Linux signal to an access vector. */
@@ -1829,14 +1821,12 @@ static int cred_has_capability(const struct cred *cred,
 
 	rc = avc_has_perm_noaudit(&selinux_state,
 				  sid, sid, sclass, av, 0, &avd);
-#ifdef CONFIG_AUDIT
 	if (!(opts & CAP_OPT_NOAUDIT)) {
 		int rc2 = avc_audit(&selinux_state,
 				    sid, sid, sclass, av, &avd, rc, &ad, 0);
 		if (rc2)
 			return rc2;
 	}
-#endif
 	return rc;
 }
 
@@ -2220,19 +2210,22 @@ static inline u32 open_file_to_av(struct file *file)
 
 /* Hook functions begin here. */
 
-static int selinux_binder_set_context_mgr(const struct cred *mgr)
+static int selinux_binder_set_context_mgr(struct task_struct *mgr)
 {
+	u32 mysid = current_sid();
+	u32 mgrsid = task_sid(mgr);
+
 	return avc_has_perm(&selinux_state,
-			    current_sid(), cred_sid(mgr), SECCLASS_BINDER,
+			    mysid, mgrsid, SECCLASS_BINDER,
 			    BINDER__SET_CONTEXT_MGR, NULL);
 }
 
-static int selinux_binder_transaction(const struct cred *from,
-				      const struct cred *to)
+static int selinux_binder_transaction(struct task_struct *from,
+				      struct task_struct *to)
 {
 	u32 mysid = current_sid();
-	u32 fromsid = cred_sid(from);
-	u32 tosid = cred_sid(to);
+	u32 fromsid = task_sid(from);
+	u32 tosid = task_sid(to);
 	int rc;
 
 	if (mysid != fromsid) {
@@ -2243,24 +2236,27 @@ static int selinux_binder_transaction(const struct cred *from,
 			return rc;
 	}
 
-	return avc_has_perm(&selinux_state, fromsid, tosid,
-			    SECCLASS_BINDER, BINDER__CALL, NULL);
-}
-
-static int selinux_binder_transfer_binder(const struct cred *from,
-					  const struct cred *to)
-{
 	return avc_has_perm(&selinux_state,
-			    cred_sid(from), cred_sid(to),
-			    SECCLASS_BINDER, BINDER__TRANSFER,
+			    fromsid, tosid, SECCLASS_BINDER, BINDER__CALL,
 			    NULL);
 }
 
-static int selinux_binder_transfer_file(const struct cred *from,
-					const struct cred *to,
+static int selinux_binder_transfer_binder(struct task_struct *from,
+					  struct task_struct *to)
+{
+	u32 fromsid = task_sid(from);
+	u32 tosid = task_sid(to);
+
+	return avc_has_perm(&selinux_state,
+			    fromsid, tosid, SECCLASS_BINDER, BINDER__TRANSFER,
+			    NULL);
+}
+
+static int selinux_binder_transfer_file(struct task_struct *from,
+					struct task_struct *to,
 					struct file *file)
 {
-	u32 sid = cred_sid(to);
+	u32 sid = task_sid(to);
 	struct file_security_struct *fsec = file->f_security;
 	struct dentry *dentry = file->f_path.dentry;
 	struct inode_security_struct *isec;
@@ -3173,7 +3169,6 @@ static int selinux_inode_follow_link(struct dentry *dentry, struct inode *inode,
 				  rcu ? MAY_NOT_BLOCK : 0);
 }
 
-#ifdef CONFIG_AUDIT
 static noinline int audit_inode_permission(struct inode *inode,
 					   u32 perms, u32 audited, u32 denied,
 					   int result)
@@ -3192,7 +3187,6 @@ static noinline int audit_inode_permission(struct inode *inode,
 		return rc;
 	return 0;
 }
-#endif
 
 static int selinux_inode_permission(struct inode *inode, int mask)
 {
@@ -3203,7 +3197,8 @@ static int selinux_inode_permission(struct inode *inode, int mask)
 	struct inode_security_struct *isec;
 	u32 sid;
 	struct av_decision avd;
-	int rc;
+	int rc, rc2;
+	u32 audited, denied;
 
 	from_access = mask & MAY_ACCESS;
 	mask &= (MAY_READ|MAY_WRITE|MAY_EXEC|MAY_APPEND);
@@ -3228,10 +3223,6 @@ static int selinux_inode_permission(struct inode *inode, int mask)
 				  sid, isec->sid, isec->sclass, perms,
 				  (flags & MAY_NOT_BLOCK) ? AVC_NONBLOCKING : 0,
 				  &avd);
-#ifdef CONFIG_AUDIT
-	{
-		int rc2;
-		u32 audited, denied;
 	audited = avc_audit_required(perms, &avd, rc,
 				     from_access ? FILE__AUDIT_ACCESS : 0,
 				     &denied);
@@ -3245,8 +3236,6 @@ static int selinux_inode_permission(struct inode *inode, int mask)
 	rc2 = audit_inode_permission(inode, perms, audited, denied, rc);
 	if (rc2)
 		return rc2;
-	}
-#endif
 	return rc;
 }
 
@@ -3314,9 +3303,6 @@ static int selinux_inode_setxattr(struct dentry *dentry, const char *name,
 		   ordinary setattr permission. */
 		return dentry_has_perm(current_cred(), dentry, FILE__SETATTR);
 	}
-
-	if (!selinux_state.initialized)
-		return (inode_owner_or_capable(inode) ? 0 : -EPERM);
 
 	sbsec = inode->i_sb->s_security;
 	if (!(sbsec->flags & SBLABEL_MNT))
@@ -3398,15 +3384,6 @@ static void selinux_inode_post_setxattr(struct dentry *dentry, const char *name,
 
 	if (strcmp(name, XATTR_NAME_SELINUX)) {
 		/* Not an attribute we recognize, so nothing to do. */
-		return;
-	}
-
-	if (!selinux_state.initialized) {
-		/* If we haven't even been initialized, then we can't validate
-		 * against a policy, so leave the label as invalid. It may
-		 * resolve to a valid label on the next revalidation try if
-		 * we've since initialized.
-		 */
 		return;
 	}
 
@@ -5817,7 +5794,7 @@ static unsigned int selinux_ip_postroute_compat(struct sk_buff *skb,
 	struct common_audit_data ad;
 	struct lsm_network_audit net = {0,};
 	char *addrp;
-	u8 proto = 0;
+	u8 proto;
 
 	if (sk == NULL)
 		return NF_ACCEPT;

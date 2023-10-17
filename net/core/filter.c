@@ -1666,7 +1666,7 @@ BPF_CALL_5(bpf_skb_store_bytes, struct sk_buff *, skb, u32, offset,
 
 	if (unlikely(flags & ~(BPF_F_RECOMPUTE_CSUM | BPF_F_INVALIDATE_HASH)))
 		return -EINVAL;
-	if (unlikely(offset > INT_MAX))
+	if (unlikely(offset > 0xffff))
 		return -EFAULT;
 	if (unlikely(bpf_try_make_writable(skb, offset + len)))
 		return -EFAULT;
@@ -1701,7 +1701,7 @@ BPF_CALL_4(bpf_skb_load_bytes, const struct sk_buff *, skb, u32, offset,
 {
 	void *ptr;
 
-	if (unlikely(offset > INT_MAX))
+	if (unlikely(offset > 0xffff))
 		goto err_clear;
 
 	ptr = skb_header_pointer(skb, offset, len, to);
@@ -2639,6 +2639,8 @@ static int bpf_skb_proto_4_to_6(struct sk_buff *skb)
 			shinfo->gso_type |=  SKB_GSO_TCPV6;
 		}
 
+		/* Due to IPv6 header, MSS needs to be downgraded. */
+		skb_decrease_gso_size(shinfo, len_diff);
 		/* Header must be checked, and gso_segs recomputed. */
 		shinfo->gso_type |= SKB_GSO_DODGY;
 		shinfo->gso_segs = 0;
@@ -2678,6 +2680,8 @@ static int bpf_skb_proto_6_to_4(struct sk_buff *skb)
 			shinfo->gso_type |=  SKB_GSO_TCPV4;
 		}
 
+		/* Due to IPv4 header, MSS can be upgraded. */
+		skb_increase_gso_size(shinfo, len_diff);
 		/* Header must be checked, and gso_segs recomputed. */
 		shinfo->gso_type |= SKB_GSO_DODGY;
 		shinfo->gso_segs = 0;
@@ -2691,7 +2695,7 @@ static int bpf_skb_proto_6_to_4(struct sk_buff *skb)
 
 static int bpf_skb_proto_xlat(struct sk_buff *skb, __be16 to_proto)
 {
-	__be16 from_proto = skb_protocol(skb, true);
+	__be16 from_proto = skb->protocol;
 
 	if (from_proto == htons(ETH_P_IP) &&
 	      to_proto == htons(ETH_P_IPV6))
@@ -2764,7 +2768,7 @@ static const struct bpf_func_proto bpf_skb_change_type_proto = {
 
 static u32 bpf_skb_net_base_len(const struct sk_buff *skb)
 {
-	switch (skb_protocol(skb, true)) {
+	switch (skb->protocol) {
 	case htons(ETH_P_IP):
 		return sizeof(struct iphdr);
 	case htons(ETH_P_IPV6):
@@ -2845,7 +2849,7 @@ static int bpf_skb_adjust_net(struct sk_buff *skb, s32 len_diff)
 	u32 len_cur, len_diff_abs = abs(len_diff);
 	u32 len_min = bpf_skb_net_base_len(skb);
 	u32 len_max = __bpf_skb_max_len(skb);
-	__be16 proto = skb_protocol(skb, true);
+	__be16 proto = skb->protocol;
 	bool shrink = len_diff < 0;
 	int ret;
 
@@ -3021,7 +3025,6 @@ static inline int __bpf_skb_change_head(struct sk_buff *skb, u32 head_room,
 		__skb_push(skb, head_room);
 		memset(skb->data, 0, head_room);
 		skb_reset_mac_header(skb);
-		skb_reset_mac_len(skb);
 	}
 
 	return ret;
@@ -4498,7 +4501,6 @@ BPF_CALL_4(bpf_skb_fib_lookup, struct sk_buff *, skb,
 {
 	struct net *net = dev_net(skb->dev);
 	int rc = -EAFNOSUPPORT;
-	bool check_mtu = false;
 
 	if (plen < sizeof(*params))
 		return -EINVAL;
@@ -4506,28 +4508,22 @@ BPF_CALL_4(bpf_skb_fib_lookup, struct sk_buff *, skb,
 	if (flags & ~(BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_OUTPUT))
 		return -EINVAL;
 
-	if (params->tot_len)
-		check_mtu = true;
-
 	switch (params->family) {
 #if IS_ENABLED(CONFIG_INET)
 	case AF_INET:
-		rc = bpf_ipv4_fib_lookup(net, params, flags, check_mtu);
+		rc = bpf_ipv4_fib_lookup(net, params, flags, false);
 		break;
 #endif
 #if IS_ENABLED(CONFIG_IPV6)
 	case AF_INET6:
-		rc = bpf_ipv6_fib_lookup(net, params, flags, check_mtu);
+		rc = bpf_ipv6_fib_lookup(net, params, flags, false);
 		break;
 #endif
 	}
 
-	if (rc == BPF_FIB_LKUP_RET_SUCCESS && !check_mtu) {
+	if (!rc) {
 		struct net_device *dev;
 
-		/* When tot_len isn't provided by user, check skb
-		 * against MTU of FIB lookup resulting net_device
-		 */
 		dev = dev_get_by_index_rcu(net, params->ifindex);
 		if (!is_skb_forwardable(dev, skb))
 			rc = BPF_FIB_LKUP_RET_FRAG_NEEDED;
@@ -4557,7 +4553,7 @@ static int bpf_push_seg6_encap(struct sk_buff *skb, u32 type, void *hdr, u32 len
 
 	switch (type) {
 	case BPF_LWT_ENCAP_SEG6_INLINE:
-		if (skb_protocol(skb, true) != htons(ETH_P_IPV6))
+		if (skb->protocol != htons(ETH_P_IPV6))
 			return -EBADMSG;
 
 		err = seg6_do_srh_inline(skb, srh);
@@ -5425,6 +5421,8 @@ static int bpf_gen_ld_abs(const struct bpf_insn *orig,
 	bool indirect = BPF_MODE(orig->code) == BPF_IND;
 	struct bpf_insn *insn = insn_buf;
 
+	/* We're guaranteed here that CTX is in R6. */
+	*insn++ = BPF_MOV64_REG(BPF_REG_1, BPF_REG_CTX);
 	if (!indirect) {
 		*insn++ = BPF_MOV64_IMM(BPF_REG_2, orig->imm);
 	} else {
@@ -5432,8 +5430,6 @@ static int bpf_gen_ld_abs(const struct bpf_insn *orig,
 		if (orig->imm)
 			*insn++ = BPF_ALU64_IMM(BPF_ADD, BPF_REG_2, orig->imm);
 	}
-	/* We're guaranteed here that CTX is in R6. */
-	*insn++ = BPF_MOV64_REG(BPF_REG_1, BPF_REG_CTX);
 
 	switch (BPF_SIZE(orig->code)) {
 	case BPF_B:
@@ -5541,9 +5537,9 @@ void bpf_warn_invalid_xdp_action(u32 act)
 {
 	const u32 act_max = XDP_REDIRECT;
 
-	pr_warn_once("%s XDP return value %u, expect packet loss!\n",
-		     act > act_max ? "Illegal" : "Driver unsupported",
-		     act);
+	WARN_ONCE(1, "%s XDP return value %u, expect packet loss!\n",
+		  act > act_max ? "Illegal" : "Driver unsupported",
+		  act);
 }
 EXPORT_SYMBOL_GPL(bpf_warn_invalid_xdp_action);
 

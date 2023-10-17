@@ -1154,8 +1154,7 @@ void phy_detach(struct phy_device *phydev)
 
 	phy_led_triggers_unregister(phydev);
 
-	if (phydev->mdio.dev.driver)
-		module_put(phydev->mdio.dev.driver->owner);
+	module_put(phydev->mdio.dev.driver->owner);
 
 	/* If the device had no specific driver before (i.e. - it
 	 * was using the generic driver), we unbind the device
@@ -1166,9 +1165,6 @@ void phy_detach(struct phy_device *phydev)
 	    phydev->mdio.dev.driver == &genphy_driver.mdiodrv.driver)
 		device_release_driver(&phydev->mdio.dev);
 
-	/* Assert the reset signal */
-	phy_device_reset(phydev, 1);
-
 	/*
 	 * The phydev might go away on the put_device() below, so avoid
 	 * a use-after-free bug by reading the underlying bus first.
@@ -1178,6 +1174,9 @@ void phy_detach(struct phy_device *phydev)
 	put_device(&phydev->mdio.dev);
 	if (ndev_owner != bus->owner)
 		module_put(bus->owner);
+
+	/* Assert the reset signal */
+	phy_device_reset(phydev, 1);
 }
 EXPORT_SYMBOL(phy_detach);
 

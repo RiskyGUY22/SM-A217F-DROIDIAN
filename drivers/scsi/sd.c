@@ -3468,7 +3468,7 @@ static void sd_probe_async(void *data, async_cookie_t cookie)
 #endif
 
 	blk_pm_runtime_init(sdp->request_queue, dev);
-	device_add_disk(dev, gd, NULL);
+	device_add_disk(dev, gd);
 #ifdef CONFIG_USB_STORAGE_DETECT
 	if (sdp->host->by_usb)
 		sdkp->prv_media_present = sdkp->media_present;
@@ -3575,16 +3575,15 @@ static int sd_probe(struct device *dev)
 	}
 
 	device_initialize(&sdkp->dev);
-	sdkp->dev.parent = get_device(dev);
+	sdkp->dev.parent = dev;
 	sdkp->dev.class = &sd_disk_class;
 	dev_set_name(&sdkp->dev, "%s", dev_name(dev));
 
 	error = device_add(&sdkp->dev);
-	if (error) {
-		put_device(&sdkp->dev);
-		goto out;
-	}
+	if (error)
+		goto out_free_index;
 
+	get_device(dev);
 	dev_set_drvdata(dev, sdkp);
 
 #ifdef CONFIG_USB_STORAGE_DETECT

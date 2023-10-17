@@ -1,0 +1,12 @@
+linux-android-samsung-a21s (0.0.0+git20231016191901.780a326.droidian) trixie; urgency=medium
+
+  [ RiskyGUY22 ]
+  * Added Kawa Source
+  * Added droidian tools
+  * Edited Kernel.mk file
+
+  [ RiskyGUY ]
+  * Add files via upload
+
+ -- RiskyGUY22 <thomas_turner@talktalk.net>  Mon, 16 Oct 2023 20:19:01 +0100
+

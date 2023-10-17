@@ -30,9 +30,6 @@
 #include <linux/bug.h>
 #include <linux/of_address.h>
 #include <linux/debugfs.h>
-#ifdef CONFIG_POWERSUSPEND
-#include <linux/powersuspend.h>
-#endif
 #include <linux/pinctrl/consumer.h>
 #include <video/mipi_display.h>
 #include <media/v4l2-subdev.h>
@@ -1175,9 +1172,6 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 	case FB_BLANK_NORMAL:
 		DPU_EVENT_LOG(DPU_EVT_BLANK, &decon->sd, ktime_set(0, 0));
 		ret = decon_update_pwr_state(decon, DISP_PWR_OFF);
-#ifdef CONFIG_POWERSUSPEND
- 		set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
-#endif
 		if (ret) {
 			decon_err("failed to disable decon\n");
 			goto blank_exit;
@@ -1188,9 +1182,6 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 		DPU_EVENT_LOG(DPU_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
 		lcd_status_notifier(LCD_ON);
 		ret = decon_update_pwr_state(decon, DISP_PWR_NORMAL);
-#ifdef CONFIG_POWERSUSPEND
- 		set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
-#endif
 		if (ret) {
 			decon_err("failed to enable decon\n");
 			goto blank_exit;
@@ -2242,10 +2233,6 @@ static int decon_set_hdr_info(struct decon_device *decon,
 	}
 	video_meta = (struct exynos_video_meta *)dma_buf_vmap(
 			regs->dma_buf_data[win_num][mp_idx].dma_buf);
-	if (IS_ERR_OR_NULL(video_meta)) {
-		decon_err("Failed to get virtual address (err %pK)\n", video_meta);
-		return -ENOMEM;
-	}
 
 	hdr_cmp = memcmp(&decon->prev_hdr_info,
 			&video_meta->shdr_static_info,
@@ -3942,10 +3929,6 @@ static int decon_fb_alloc_memory(struct decon_device *decon, struct decon_win *w
 	}
 
 	vaddr = dma_buf_vmap(buf);
-	if (IS_ERR_OR_NULL(vaddr)) {
-		dev_err(decon->dev, "dma_buf_vmap() failed\n");
-		goto err_map;
-	}
 
 	memset(vaddr, 0x00, size);
 
@@ -4024,10 +4007,6 @@ static int decon_fb_test_alloc_memory(struct decon_device *decon, u32 size)
 	}
 
 	vaddr = dma_buf_vmap(buf);
-	if (IS_ERR_OR_NULL(vaddr)) {
-		dev_err(decon->dev, "dma_buf_vmap() failed\n");
-		goto err_map;
-	}
 
 	memset(vaddr, 0x00, size);
 

@@ -106,10 +106,6 @@
 #define GLOBAL_SYSTEM_GID KGIDT_INIT(1000)
 #endif
 
-#ifdef CONFIG_PAGE_BOOST
-#include <linux/delayacct.h>
-#endif
-
 /* NOTE:
  *	Implementing inode permission operations in /proc is almost
  *	certainly an error.  Permission checks need to happen during
@@ -477,57 +473,6 @@ static int proc_pid_stack(struct seq_file *m, struct pid_namespace *ns,
 	kfree(entries);
 
 	return err;
-}
-#endif
-
-#ifdef CONFIG_PAGE_BOOST
-static int proc_pid_ioinfo(struct seq_file *m, struct pid_namespace *ns,
-			      struct pid *pid, struct task_struct *task)
-{
-	struct task_io_accounting acct = task->ioac;
-	unsigned long flags;
-	int result;
-
-	result = mutex_lock_killable(&task->signal->cred_guard_mutex);
-	if (result)
-		return result;
-
-	if (!ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS)) {
-		result = -EACCES;
-		goto out_unlock;
-	}
-
-	if (lock_task_sighand(task, &flags)) {
-		struct task_struct *t = task;
-
-		task_io_accounting_add(&acct, &task->signal->ioac);
-		while_each_thread(task, t)
-			task_io_accounting_add(&acct, &t->ioac);
-
-		unlock_task_sighand(task, &flags);
-	}
-
-	seq_printf(m,
-		   "%llu\n"
-		   "%llu\n"
-		   "%llu\n",
-#ifdef CONFIG_TASK_XACCT
-		   (unsigned long long)acct.rchar,
-#else
-		   (unsigned long long)0,
-#endif
-#ifdef CONFIG_TASK_IO_ACCOUNTING
-		   (unsigned long long)acct.read_bytes,
-#else
- 		   (unsigned long long)0,                 
-#endif
-		   (unsigned long long)delayacct_blkio_nsecs(task));
-
-	result = 0;
-
-out_unlock:
-	mutex_unlock(&task->signal->cred_guard_mutex);
-	return result;
 }
 #endif
 
@@ -900,7 +845,7 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
 	flags = FOLL_FORCE | (write ? FOLL_WRITE : 0);
 
 	while (count > 0) {
-		size_t this_len = min_t(size_t, count, PAGE_SIZE);
+		int this_len = min_t(int, count, PAGE_SIZE);
 
 		if (write && copy_from_user(page, buf, this_len)) {
 			copied = -EFAULT;
@@ -1223,6 +1168,7 @@ static ssize_t oom_adj_read(struct file *file, char __user *buf, size_t count,
 
 static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 {
+	static DEFINE_MUTEX(oom_adj_mutex);
 	struct mm_struct *mm = NULL;
 	struct task_struct *task;
 	int err = 0;
@@ -1262,7 +1208,7 @@ static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 		struct task_struct *p = find_lock_task_mm(task);
 
 		if (p) {
-			if (test_bit(MMF_MULTIPROCESS, &p->mm->flags)) {
+			if (atomic_read(&p->mm->mm_users) > 1) {
 				mm = p->mm;
 				mmgrab(mm);
 			}
@@ -2753,13 +2699,6 @@ out:
 }
 
 #ifdef CONFIG_SECURITY
-static int proc_pid_attr_open(struct inode *inode, struct file *file)
-{
-	file->private_data = NULL;
-	__mem_open(inode, file, PTRACE_MODE_READ_FSCREDS);
-	return 0;
-}
-
 static ssize_t proc_pid_attr_read(struct file * file, char __user * buf,
 				  size_t count, loff_t *ppos)
 {
@@ -2788,10 +2727,6 @@ static ssize_t proc_pid_attr_write(struct file * file, const char __user * buf,
 	struct task_struct *task;
 	void *page;
 	int rv;
-
-	/* A task may only write when it was the opener. */
-	if (file->private_data != current->mm)
-		return -EPERM;
 
 	rcu_read_lock();
 	task = pid_task(proc_pid(inode), PIDTYPE_PID);
@@ -2838,11 +2773,9 @@ out:
 }
 
 static const struct file_operations proc_pid_attr_operations = {
-	.open		= proc_pid_attr_open,
 	.read		= proc_pid_attr_read,
 	.write		= proc_pid_attr_write,
 	.llseek		= generic_file_llseek,
-	.release	= mem_release,
 };
 
 static const struct pid_entry attr_dir_stuff[] = {
@@ -3233,14 +3166,6 @@ static const struct pid_entry tgid_base_stuff[] = {
 	ONE("stat",       S_IRUGO, proc_tgid_stat),
 	ONE("statm",      S_IRUGO, proc_pid_statm),
 	REG("maps",       S_IRUGO, proc_pid_maps_operations),
-#ifdef CONFIG_PAGE_BOOST
-	REG("filemap_list",       S_IRUGO, proc_pid_filemap_list_operations),
-	REG("filemap_info",       S_IRUGO|S_IWUGO, proc_pid_filemap_info_operations),
-	ONE("ioinfo",  S_IRUGO, proc_pid_ioinfo),
-#ifdef CONFIG_PAGE_BOOST_RECORDING
-	REG("io_record_control",      S_IRUGO|S_IWUGO, proc_pid_io_record_operations),
-#endif
-#endif
 #ifdef CONFIG_NUMA
 	REG("numa_maps",  S_IRUGO, proc_pid_numa_maps_operations),
 #endif

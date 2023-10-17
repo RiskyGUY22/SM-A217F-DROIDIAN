@@ -1,12 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
- * of such GNU license.
+ * of such GNU licence.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
+ *
+ * SPDX-License-Identifier: GPL-2.0
  *
  */
 
@@ -46,7 +47,7 @@ struct memory_group_manager_import_data;
  * @mgm_vmf_insert_pfn_prot:  Callback to map a physical memory page for the CPU
  */
 struct memory_group_manager_ops {
-	/*
+	/**
 	 * mgm_alloc_page - Allocate a physical memory page in a group
 	 *
 	 * @mgm_dev:  The memory group manager through which the request is
@@ -65,7 +66,7 @@ struct memory_group_manager_ops {
 		struct memory_group_manager_device *mgm_dev, int group_id,
 		gfp_t gfp_mask, unsigned int order);
 
-	/*
+	/**
 	 * mgm_free_page - Free a physical memory page in a group
 	 *
 	 * @mgm_dev:  The memory group manager through which the request
@@ -84,7 +85,7 @@ struct memory_group_manager_ops {
 		struct memory_group_manager_device *mgm_dev, int group_id,
 		struct page *page, unsigned int order);
 
-	/*
+	/**
 	 * mgm_get_import_memory_id - Get the physical memory group ID for the
 	 *                            imported memory
 	 *
@@ -100,10 +101,10 @@ struct memory_group_manager_ops {
 	 *         imported memory.
 	 */
 	int (*mgm_get_import_memory_id)(
-		struct memory_group_manager_device *mgm_dev,
-		struct memory_group_manager_import_data *import_data);
+			struct memory_group_manager_device *mgm_dev,
+			struct memory_group_manager_import_data *import_data);
 
-	/*
+	/**
 	 * mgm_update_gpu_pte - Modify a GPU page table entry for a memory group
 	 *
 	 * @mgm_dev:   The memory group manager through which the request
@@ -127,7 +128,7 @@ struct memory_group_manager_ops {
 	u64 (*mgm_update_gpu_pte)(struct memory_group_manager_device *mgm_dev,
 			int group_id, int mmu_level, u64 pte);
 
-	/*
+	/**
 	 * mgm_vmf_insert_pfn_prot - Map a physical page in a group for the CPU
 	 *
 	 * @mgm_dev:   The memory group manager through which the request
@@ -149,18 +150,17 @@ struct memory_group_manager_ops {
 	 *         table entry was successfully installed.
 	 */
 	vm_fault_t (*mgm_vmf_insert_pfn_prot)(
-		struct memory_group_manager_device *mgm_dev, int group_id,
-		struct vm_area_struct *vma, unsigned long addr,
-		unsigned long pfn, pgprot_t pgprot);
+			struct memory_group_manager_device *mgm_dev, int group_id,
+			struct vm_area_struct *vma, unsigned long addr,
+			unsigned long pfn, pgprot_t pgprot);
 };
 
 /**
  * struct memory_group_manager_device - Device structure for a memory group
  *                                      manager
  *
- * @ops:   Callbacks associated with this device
- * @data:  Pointer to device private data
- * @owner: pointer to owning module
+ * @ops  - Callbacks associated with this device
+ * @data - Pointer to device private data
  *
  * In order for a systems integrator to provide custom behaviors for memory
  * operations performed by the kbase module (controller driver), they must
@@ -184,9 +184,8 @@ enum memory_group_manager_import_type {
  * struct memory_group_manager_import_data - Structure describing the imported
  *                                           memory
  *
- * @type:      type of imported memory
- * @u:         Union describing the imported memory
- * @u.dma_buf: imported memory
+ * @type  - type of imported memory
+ * @u     - Union describing the imported memory
  *
  */
 struct memory_group_manager_import_data {

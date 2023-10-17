@@ -90,6 +90,3 @@ obj-$(CONFIG_EXYNOS_GNSS_IF) += gnssif/
 obj-$(CONFIG_EXYNOS_CPU_PERF)	+= exynos_cpu_perf/
 
 obj-$(CONFIG_EXYNOS_DEBUG_FREQ)	+= exynos_debug_freq.o
-
-# State Notifier
-obj-$(CONFIG_STATE_NOTIFIER)	+= state_notifier.o
